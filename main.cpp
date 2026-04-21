@@ -10,6 +10,7 @@ Feel free to contribute.
 
 int main(int argc, char *argv[])
 {
+    qputenv("QT_LOGGING_RULES", "qt.core.socketnotifier=false");
     QApplication a(argc, argv);
     MainWindow w;
     w.show();

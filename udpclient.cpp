@@ -10,7 +10,12 @@ UDPClient::UDPClient(QObject *parent) :
 
 bool UDPClient::bind(qint16 port)
 {
-    return udpSocket->bind(QHostAddress::LocalHost, port);
+    return udpSocket->bind(QHostAddress::AnyIPv4, port);
+}
+
+void UDPClient::unbind()
+{
+    udpSocket->close();
 }
 
 void UDPClient::readyRead()
@@ -34,5 +39,5 @@ void UDPClient::readyRead()
     qDebug() << "Message port: " << senderPort;
     qDebug() << "Message: " << datagram;
 
-    emit sigUdpDataReceived(datagram);
+    emit sigUdpDataReceived(QString::fromLatin1(datagram));
 }

@@ -3,9 +3,20 @@
 ledBar::ledBar(QObject *parent) :
     QObject(parent)
 {
-    eplClient = new TCPClient(this);
+    tcpThread = new QThread(this);
+    eplClient = new TCPClient;
+    eplClient->moveToThread(tcpThread);
+    connect(tcpThread, &QThread::started, eplClient, &TCPClient::init); // socket créé dans le worker thread
     connect(eplClient, SIGNAL(sigConnected()), this, SLOT(led_connected()));
     connect(eplClient, SIGNAL(sigDisconnected()), this, SLOT(led_disconnected()));
+    tcpThread->start();
+}
+
+ledBar::~ledBar()
+{
+    tcpThread->quit();
+    tcpThread->wait();
+    delete eplClient;
 }
 
 // ***************** METHODS ********************** //
@@ -28,17 +39,25 @@ QString ledBar::getCurrentMsgNumber()
 
 void ledBar::connection(QString _ip, int port)
 {
-    eplClient->connection(_ip, port);
+    QMetaObject::invokeMethod(eplClient, "connection",
+        Qt::BlockingQueuedConnection,
+        Q_ARG(QString, _ip),
+        Q_ARG(int, port));
 }
 
 void ledBar::closeConnection()
 {
-    eplClient->closeConnection();
+    QMetaObject::invokeMethod(eplClient, "closeConnection",
+        Qt::BlockingQueuedConnection);
 }
 
 bool ledBar::isConnected()
 {
-    return eplClient->isConnected();
+    bool result = false;
+    QMetaObject::invokeMethod(eplClient, "isConnected",
+        Qt::BlockingQueuedConnection,
+        Q_RETURN_ARG(bool, result));
+    return result;
 }
 
 QString ledBar::getStoredMessage(int bank)
@@ -95,12 +114,19 @@ void ledBar::brightness(int value)
 
 void ledBar::sendMessage(QString msg)
 {
-    eplClient->sendCommand(msg);
+    QMetaObject::invokeMethod(eplClient, "sendCommand",
+        Qt::BlockingQueuedConnection,
+        Q_ARG(QString, msg));
 }
 
 QString ledBar::sendQuery(QString msg)
 {
-    return eplClient->sendQuery(msg);
+    QString result;
+    QMetaObject::invokeMethod(eplClient, "sendQuery",
+        Qt::BlockingQueuedConnection,
+        Q_RETURN_ARG(QString, result),
+        Q_ARG(QString, msg));
+    return result;
 }
 
 void ledBar::authorize(int bank)

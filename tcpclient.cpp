@@ -4,7 +4,11 @@
 
 
 TCPClient::TCPClient(QObject *parent) :
-    QObject(parent)
+    QObject(parent), socket(nullptr)
+{
+}
+
+void TCPClient::init()
 {
     socket = new QTcpSocket(this);
     connect(socket, SIGNAL(connected()), this, SLOT(connected()));
@@ -13,15 +17,14 @@ TCPClient::TCPClient(QObject *parent) :
 
 TCPClient::~TCPClient()
 {
-    if (socket->state() == QAbstractSocket::ConnectedState)
-    {
+    if (socket && socket->state() == QAbstractSocket::ConnectedState)
         socket->abort();
-    }
     delete socket;
 }
 
 bool TCPClient::connection(QString _addr, int _port)
 {
+    if (!socket) return false;
     addr = _addr;
     port = _port;
 
@@ -37,13 +40,17 @@ bool TCPClient::connection(QString _addr, int _port)
 
 bool TCPClient::sendCommand(QString command)
 {
-    if (socket->state() != QAbstractSocket::ConnectedState)
+    if (!socket || socket->state() != QAbstractSocket::ConnectedState)
     {
         qWarning() << "Couldn't send command : not connected !";
         return false;
     }
 
     QTextCodec* cp1252 = QTextCodec::codecForName("cp1252");
+    if (!cp1252) {
+        qWarning() << "Codec cp1252 not available!";
+        return false;
+    }
     QByteArray eplCommand = cp1252->fromUnicode(command + "\r\n"); // send command in EPL330 compatible cp1252 encoded character
     if(socket->write(eplCommand))
     {
@@ -67,54 +74,46 @@ bool TCPClient::sendCommand(QString command)
 
 QString TCPClient::sendQuery(QString query)
 {
-    if (socket->state() != QAbstractSocket::ConnectedState)
+    if (!socket || socket->state() != QAbstractSocket::ConnectedState)
     {
         qWarning() << "Can't send command : not connected !";
+        return QString();
     }
-    else
-    {
-        while (socket->bytesAvailable() > 0) // purge socket buffer
+
+    while (socket->bytesAvailable() > 0) // purge socket buffer
+        socket->readLine();
+
+    socket->write(query.toLatin1() + "\r\n");
+
+    QString resp;
+    if(socket->waitForBytesWritten(2000)) {
+        while(socket->bytesAvailable() > 0 || socket->waitForReadyRead(1000))
         {
-            socket->readLine();
+            resp.append(QString::fromLatin1(socket->readLine()));
+            if (resp.contains("@"))
+                return resp;
         }
-
-        socket->write(query.toLatin1() + "\r\n");
-
-        QString resp;
-        if(socket->waitForBytesWritten(2000)) {
-            while(socket->bytesAvailable() > 0 || socket->waitForReadyRead(1000))
-            {
-                resp.append(QString::fromLatin1(socket->readLine()));
-                if (resp.contains("@"))
-                    return resp;
-            }
-        }
-        qWarning() << "Waiting for data to read timed out. Nothing to read !";
     }
+    qWarning() << "Waiting for data to read timed out. Nothing to read !";
     return QString();
 }
 
-int TCPClient::isConnected()
+bool TCPClient::isConnected()
 {
-    return socket->state();
+    return socket && socket->state() == QAbstractSocket::ConnectedState;
 }
 
 void TCPClient::closeConnection()
 {
-    socket->abort();
+    if (socket) socket->abort();
 }
 
 // SLOTS ------------------
 
 void TCPClient::connected()
 {
-    if(socket->waitForReadyRead((2000)))
-    {
-        while (socket->bytesAvailable() > 0 ) //purge socket buffer
-        {
-            socket->readLine();
-        }
-    }
+    while (socket->bytesAvailable() > 0)
+        socket->readLine();
     emit sigConnected();
 }
 

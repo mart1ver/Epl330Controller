@@ -302,7 +302,7 @@ void MainWindow::on_checkBox_stateChanged(int arg1)
     if (arg1 == Qt::Unchecked)
     {
         ui->groupTriggersConfig->setEnabled(false);
-        udpReceiver->disconnect();
+        udpReceiver->unbind();
     }
     else if (arg1 == Qt::Checked)
     {

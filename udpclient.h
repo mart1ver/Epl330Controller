@@ -11,6 +11,7 @@ public:
     explicit UDPClient(QObject *parent = 0);
 
     bool bind(qint16 port);
+    void unbind();
 
 signals:
     void sigUdpDataReceived(QString data);

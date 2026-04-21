@@ -2,6 +2,7 @@
 #define LEDBAR_H
 
 #include <QObject>
+#include <QThread>
 #include <tcpclient.h>
 
 class ledBar : public QObject
@@ -9,6 +10,7 @@ class ledBar : public QObject
     Q_OBJECT
 public:
     explicit ledBar(QObject *parent = 0);
+    ~ledBar();
 
     void connection(QString _ip, int port);
     void closeConnection();
@@ -43,6 +45,7 @@ public slots:
 
 private:
     TCPClient *eplClient;
+    QThread   *tcpThread;
 };
 
 #endif // LEDBAR_H

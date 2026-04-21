@@ -16,19 +16,20 @@ public:
     QString addr;
     int port;
 
-    bool connection(QString _addr, int _port);
-    void closeConnection();
+    Q_INVOKABLE bool connection(QString _addr, int _port);
+    Q_INVOKABLE void closeConnection();
 
-    bool sendCommand(QString command);
-    QString sendQuery(QString query);
+    Q_INVOKABLE bool sendCommand(QString command);
+    Q_INVOKABLE QString sendQuery(QString query);
 
-    int isConnected();
+    Q_INVOKABLE bool isConnected();
     
 signals:
     void sigConnected();
     void sigDisconnected();
 
 public slots:
+    void init();
     void connected();
     void disconnected();
 

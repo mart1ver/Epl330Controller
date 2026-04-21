@@ -1,7 +1,15 @@
-*.pro
+# Qt build artifacts
+*.o
 *.pro.user
 *.autosave
-<<<<<<< HEAD
-=======
+.qmake.stash
+Makefile
+moc_*.cpp
+moc_predefs.h
+ui_*.h
 
->>>>>>> 5ffe3db6053cec4b49cf02ceed547e30238fa5e1
+# Binary
+ledManager
+
+# Claude
+.claude/
