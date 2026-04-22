@@ -299,7 +299,7 @@
       </widget>
       <widget class="QComboBox" name="effect">
        <property name="enabled">
-        <bool>false</bool>
+        <bool>true</bool>
        </property>
        <property name="geometry">
         <rect>
@@ -327,7 +327,7 @@
       </widget>
       <widget class="QLabel" name="label_10">
        <property name="enabled">
-        <bool>false</bool>
+        <bool>true</bool>
        </property>
        <property name="geometry">
         <rect>
@@ -1976,6 +1976,13 @@
          <string>Boutique Plateau Media (192.168.5.72)</string>
         </property>
        </item>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="managePanels">
+       <property name="text">
+        <string>Gérer...</string>
+       </property>
       </widget>
      </item>
      <item>

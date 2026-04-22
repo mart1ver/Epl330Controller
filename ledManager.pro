@@ -8,13 +8,19 @@ SOURCES += \
     mainwindow.cpp \
     tcpclient.cpp \
     udpclient.cpp \
-    ledbar.cpp
+    ledbar.cpp \
+    panelconfig.cpp \
+    networkscanner.cpp \
+    paneldialog.cpp
 
 HEADERS += \
     mainwindow.h \
     tcpclient.h \
     udpclient.h \
-    ledbar.h
+    ledbar.h \
+    panelconfig.h \
+    networkscanner.h \
+    paneldialog.h
 
 FORMS += \
     mainwindow.ui

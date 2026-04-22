@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include "paneldialog.h"
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -21,6 +22,16 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->timeSchedule, SIGNAL(toggled(bool)), ui->fromMTime, SLOT(setDisabled(bool)));
     connect(ui->timeSchedule, SIGNAL(toggled(bool)), ui->toHTime, SLOT(setDisabled(bool)));
     connect(ui->timeSchedule, SIGNAL(toggled(bool)), ui->toMTime, SLOT(setDisabled(bool)));
+
+    loadPanels();
+}
+
+void MainWindow::loadPanels()
+{
+    _panels = PanelConfig::load();
+    ui->ip->clear();
+    for (const Panel &p : _panels)
+        ui->ip->addItem(p.name, p.ip);
 }
 
 MainWindow::~MainWindow()
@@ -195,44 +206,37 @@ void MainWindow::on_connect_clicked()
 {
     if (ui->connect->isChecked())
     {
-        if (ui->custom_ip->text() == "")
-        {
-            switch (ui->ip->currentIndex())
-            {
-            case 0: epl->connection("192.168.5.54", 23); break;
-            case 1: epl->connection("192.168.5.53", 23); break;
-            case 2: epl->connection("192.168.5.52", 23); break;
-            case 3: epl->connection("192.168.5.51", 23); break;
-            case 4: epl->connection("192.168.5.50", 23); break;
-            case 5: epl->connection("192.168.5.74", 23); break;
-            case 6: epl->connection("192.168.5.55", 23); break;
-            case 7: epl->connection("192.168.5.57", 23); break;
-            case 8: epl->connection("192.168.5.56", 23); break;
-            case 9: epl->connection("192.168.5.59", 23); break;
-            case 10: epl->connection("192.168.5.66", 23); break;
-            case 11: epl->connection("192.168.5.65", 23); break;
-            case 12: epl->connection("192.168.5.60", 23); break;
-            case 13: epl->connection("192.168.5.62", 23); break;
-            case 14: epl->connection("192.168.5.64", 23); break;
-            case 15: epl->connection("192.168.5.67", 23); break;
-            case 16: epl->connection("192.168.5.72", 23); break;
-            }
+        QString ip = ui->custom_ip->text().isEmpty()
+                     ? ui->ip->currentData().toString()
+                     : ui->custom_ip->text();
+
+        if (ip.isEmpty()) {
+            ui->connect->setChecked(false);
+            ui->statusBar->showMessage("Aucun panneau sélectionné.", 5000);
+            return;
         }
-        else
-        {
-            epl->connection(ui->custom_ip->text(), 23);
-        }
+
+        epl->connection(ip, 23);
 
         if (!epl->isConnected())
         {
-           ui->connect->setChecked(false);
+            ui->connect->setChecked(false);
             ui->statusBar->showMessage("Impossible de se connecter... vérifiez vos paramètres et votre connexion réseau.", 5000);
         }
-
     }
     else
     {
         epl->closeConnection();
+    }
+}
+
+void MainWindow::on_managePanels_clicked()
+{
+    PanelDialog dlg(_panels, this);
+    if (dlg.exec() == QDialog::Accepted) {
+        _panels = dlg.panels();
+        PanelConfig::save(_panels);
+        loadPanels();
     }
 }
 
@@ -350,6 +354,7 @@ void MainWindow::eplConnected()
     ui->custom_ip->setEnabled(false);
     ui->connect->setChecked(true);
     ui->connect->setText("Déconnecter");
+    ui->groupIP->setEnabled(true);
     ui->statusBar->showMessage("Connecté au journal !", 5000);
     this->updateCurrentMsgNum();
 }
@@ -364,6 +369,7 @@ void MainWindow::eplDisconnected()
     ui->custom_ip->setEnabled(true);
     ui->connect->setChecked(false);
     ui->connect->setText("Connecter");
+    ui->groupIP->setEnabled(false);
     ui->msgTable->clearContents();
     ui->statusBar->showMessage("Journal déconnecté !", 5000);
 }

@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include <udpclient.h>
 #include <ledbar.h>
+#include "panelconfig.h"
 
 namespace Ui {
 class MainWindow;
@@ -53,11 +54,15 @@ private slots:
     void on_saveIP_clicked();
 
     void on_authorizeAll_2_clicked();
+    void on_managePanels_clicked();
 
 private:
-    Ui::MainWindow *ui;
-    UDPClient *udpReceiver;
-    ledBar *epl;
+    void loadPanels();
+
+    Ui::MainWindow  *ui;
+    UDPClient       *udpReceiver;
+    ledBar          *epl;
+    QList<Panel>     _panels;
 };
 
 #endif // MAINWINDOW_H
