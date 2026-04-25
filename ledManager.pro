@@ -11,7 +11,9 @@ SOURCES += \
     ledbar.cpp \
     panelconfig.cpp \
     networkscanner.cpp \
-    paneldialog.cpp
+    paneldialog.cpp \
+    orfeoclient.cpp \
+    orfeoconfig.cpp
 
 HEADERS += \
     mainwindow.h \
@@ -20,7 +22,10 @@ HEADERS += \
     ledbar.h \
     panelconfig.h \
     networkscanner.h \
-    paneldialog.h
+    paneldialog.h \
+    orfeoclient.h \
+    orfeoconfig.h \
+    orfeoevent.h
 
 FORMS += \
     mainwindow.ui

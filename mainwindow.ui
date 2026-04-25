@@ -1878,6 +1878,11 @@
       </widget>
      </widget>
     </widget>
+    <widget class="QWidget" name="orfeoTab">
+     <attribute name="title">
+      <string>Api Orfeo</string>
+     </attribute>
+    </widget>
    </widget>
    <widget class="QWidget" name="layoutWidget">
     <property name="geometry">

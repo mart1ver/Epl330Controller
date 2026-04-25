@@ -1,6 +1,22 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "paneldialog.h"
+#include "orfeoclient.h"
+
+#include <QTimer>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QFormLayout>
+#include <QGroupBox>
+#include <QTableWidget>
+#include <QHeaderView>
+#include <QLineEdit>
+#include <QLabel>
+#include <QPushButton>
+#include <QCheckBox>
+#include <QSpinBox>
+#include <QScrollArea>
+#include <QWidget>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -23,7 +39,17 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(ui->timeSchedule, SIGNAL(toggled(bool)), ui->toHTime, SLOT(setDisabled(bool)));
     connect(ui->timeSchedule, SIGNAL(toggled(bool)), ui->toMTime, SLOT(setDisabled(bool)));
 
+    _orfeoClient = new OrfeoClient(this);
+    _orfeoTimer  = new QTimer(this);
+    connect(_orfeoClient, &OrfeoClient::eventsReceived, this, &MainWindow::orfeoEventsReceived);
+    connect(_orfeoClient, &OrfeoClient::errorOccurred,  this, &MainWindow::orfeoError);
+    connect(_orfeoTimer,  &QTimer::timeout,             this, &MainWindow::orfeoAutoSyncTick);
+
+    _orfeoClient->setApiUrl(OrfeoConfig::apiUrl());
+    _orfeoClient->setApiKey(OrfeoConfig::apiKey());
+
     loadPanels();
+    setupOrfeoTab();
 }
 
 void MainWindow::loadPanels()
@@ -566,3 +592,318 @@ void MainWindow::on_zoneSet_clicked()
     ui->statusBar->showMessage("Zones configurées !", 5000);
 }
 
+// ==================== API ORFEO TAB ====================
+
+static QWidget *centeredCheckBox(QCheckBox *cb)
+{
+    QWidget *w = new QWidget;
+    QHBoxLayout *l = new QHBoxLayout(w);
+    l->addWidget(cb);
+    l->setAlignment(Qt::AlignCenter);
+    l->setContentsMargins(0, 0, 0, 0);
+    return w;
+}
+
+void MainWindow::setupOrfeoTab()
+{
+    QWidget *tab = ui->tabs->findChild<QWidget*>("orfeoTab");
+    if (!tab) return;
+
+    QVBoxLayout *root = new QVBoxLayout(tab);
+    root->setSpacing(8);
+    root->setContentsMargins(8, 8, 8, 8);
+
+    // --- Group: Configuration API ---
+    QGroupBox *apiGroup = new QGroupBox("Configuration API Orfeo", tab);
+    QVBoxLayout *apiVBox = new QVBoxLayout(apiGroup);
+    QFormLayout *apiForm = new QFormLayout;
+    apiForm->setLabelAlignment(Qt::AlignRight);
+
+    _orfeoApiUrlEdit = new QLineEdit(OrfeoConfig::apiUrl());
+    _orfeoApiUrlEdit->setPlaceholderText("https://votre-instance.orfeo.pro");
+    _orfeoApiKeyEdit = new QLineEdit(OrfeoConfig::apiKey());
+    _orfeoApiKeyEdit->setEchoMode(QLineEdit::Password);
+    _orfeoApiKeyEdit->setPlaceholderText("Clé API ou token d'authentification");
+
+    apiForm->addRow("URL de l'instance :", _orfeoApiUrlEdit);
+    apiForm->addRow("Clé API :", _orfeoApiKeyEdit);
+    apiVBox->addLayout(apiForm);
+
+    QHBoxLayout *apiButtons = new QHBoxLayout;
+    QPushButton *testBtn = new QPushButton("Tester la connexion");
+    QPushButton *saveApiBtn = new QPushButton("Enregistrer");
+    _orfeoStatusLabel = new QLabel("—");
+    _orfeoStatusLabel->setStyleSheet("color: gray;");
+    apiButtons->addWidget(testBtn);
+    apiButtons->addWidget(saveApiBtn);
+    apiButtons->addWidget(_orfeoStatusLabel);
+    apiButtons->addStretch();
+    apiVBox->addLayout(apiButtons);
+
+    root->addWidget(apiGroup);
+
+    // --- Group: Événements à venir ---
+    QGroupBox *eventsGroup = new QGroupBox("Événements à venir", tab);
+    QVBoxLayout *eventsVBox = new QVBoxLayout(eventsGroup);
+
+    _orfeoEventsTable = new QTableWidget(0, 5);
+    _orfeoEventsTable->setHorizontalHeaderLabels({"Date", "Heure", "Titre", "Salle", "Personnel"});
+    _orfeoEventsTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    _orfeoEventsTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch);
+    _orfeoEventsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    _orfeoEventsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    _orfeoEventsTable->setMinimumHeight(130);
+    eventsVBox->addWidget(_orfeoEventsTable);
+
+    QHBoxLayout *eventsBar = new QHBoxLayout;
+    QPushButton *refreshBtn = new QPushButton("Actualiser");
+    _orfeoAutoSyncCheck = new QCheckBox("Sync automatique toutes les");
+    _orfeoIntervalSpin  = new QSpinBox;
+    _orfeoIntervalSpin->setRange(1, 1440);
+    _orfeoIntervalSpin->setValue(30);
+    _orfeoIntervalSpin->setSuffix(" min");
+    eventsBar->addWidget(refreshBtn);
+    eventsBar->addSpacing(16);
+    eventsBar->addWidget(_orfeoAutoSyncCheck);
+    eventsBar->addWidget(_orfeoIntervalSpin);
+    eventsBar->addStretch();
+    eventsVBox->addLayout(eventsBar);
+
+    root->addWidget(eventsGroup);
+
+    // --- Group: Configuration par panneau ---
+    QGroupBox *panelGroup = new QGroupBox("Configuration par panneau", tab);
+    QVBoxLayout *panelVBox = new QVBoxLayout(panelGroup);
+
+    const QStringList panelCols = {
+        "Panneau", "Mémoire", "Titre", "Date", "Heure", "Salle",
+        "Personnel", "Filtre salle", "Intervalle", "Actif"
+    };
+    _orfeoPanelTable = new QTableWidget(0, panelCols.size());
+    _orfeoPanelTable->setHorizontalHeaderLabels(panelCols);
+    _orfeoPanelTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+    _orfeoPanelTable->horizontalHeader()->setSectionResizeMode(7, QHeaderView::Stretch);
+    _orfeoPanelTable->setMinimumHeight(160);
+
+    // Load saved configs; fall back to one row per panel
+    _orfeoConfigs = OrfeoConfig::load();
+    if (_orfeoConfigs.isEmpty()) {
+        for (const Panel &p : _panels) {
+            PanelOrfeoConfig c;
+            c.panelName = p.name;
+            c.panelIp   = p.ip;
+            _orfeoConfigs.append(c);
+        }
+    }
+
+    _orfeoPanelTable->setRowCount(_orfeoConfigs.size());
+    for (int row = 0; row < _orfeoConfigs.size(); ++row) {
+        const PanelOrfeoConfig &c = _orfeoConfigs[row];
+
+        auto nameItem = new QTableWidgetItem(c.panelName + " (" + c.panelIp + ")");
+        nameItem->setFlags(nameItem->flags() & ~Qt::ItemIsEditable);
+        _orfeoPanelTable->setItem(row, 0, nameItem);
+
+        QSpinBox *bankSpin = new QSpinBox;
+        bankSpin->setRange(1, 10);
+        bankSpin->setValue(c.bank);
+        _orfeoPanelTable->setCellWidget(row, 1, bankSpin);
+
+        auto mkCb = [](bool checked) {
+            QCheckBox *cb = new QCheckBox;
+            cb->setChecked(checked);
+            return cb;
+        };
+        _orfeoPanelTable->setCellWidget(row, 2, centeredCheckBox(mkCb(c.showTitle)));
+        _orfeoPanelTable->setCellWidget(row, 3, centeredCheckBox(mkCb(c.showDate)));
+        _orfeoPanelTable->setCellWidget(row, 4, centeredCheckBox(mkCb(c.showTime)));
+        _orfeoPanelTable->setCellWidget(row, 5, centeredCheckBox(mkCb(c.showSalle)));
+        _orfeoPanelTable->setCellWidget(row, 6, centeredCheckBox(mkCb(c.showPersonnel)));
+
+        QLineEdit *salleEdit = new QLineEdit(c.salleFilter);
+        salleEdit->setPlaceholderText("(toutes)");
+        _orfeoPanelTable->setCellWidget(row, 7, salleEdit);
+
+        QSpinBox *intervalSpin = new QSpinBox;
+        intervalSpin->setRange(1, 1440);
+        intervalSpin->setValue(c.intervalMin);
+        intervalSpin->setSuffix(" min");
+        _orfeoPanelTable->setCellWidget(row, 8, intervalSpin);
+
+        _orfeoPanelTable->setCellWidget(row, 9, centeredCheckBox(mkCb(c.active)));
+    }
+
+    panelVBox->addWidget(_orfeoPanelTable);
+
+    QHBoxLayout *panelBar = new QHBoxLayout;
+    QPushButton *saveConfigBtn = new QPushButton("Enregistrer la configuration");
+    panelBar->addWidget(saveConfigBtn);
+    panelBar->addStretch();
+    panelVBox->addLayout(panelBar);
+
+    root->addWidget(panelGroup);
+
+    // --- Connections ---
+    connect(testBtn,       &QPushButton::clicked, this, &MainWindow::on_orfeoTestApi_clicked);
+    connect(saveApiBtn,    &QPushButton::clicked, this, &MainWindow::on_orfeoSaveApi_clicked);
+    connect(refreshBtn,    &QPushButton::clicked, this, &MainWindow::on_orfeoRefresh_clicked);
+    connect(saveConfigBtn, &QPushButton::clicked, this, &MainWindow::on_orfeoSaveConfig_clicked);
+    connect(_orfeoAutoSyncCheck, &QCheckBox::toggled, this, &MainWindow::on_orfeoAutoSync_toggled);
+}
+
+void MainWindow::on_orfeoTestApi_clicked()
+{
+    _orfeoClient->setApiUrl(_orfeoApiUrlEdit->text().trimmed());
+    _orfeoClient->setApiKey(_orfeoApiKeyEdit->text().trimmed());
+    _orfeoStatusLabel->setText("Connexion en cours…");
+    _orfeoStatusLabel->setStyleSheet("color: orange;");
+    _orfeoClient->fetchEvents();
+}
+
+void MainWindow::on_orfeoSaveApi_clicked()
+{
+    OrfeoConfig::saveApiSettings(_orfeoApiUrlEdit->text().trimmed(),
+                                 _orfeoApiKeyEdit->text().trimmed());
+    _orfeoClient->setApiUrl(_orfeoApiUrlEdit->text().trimmed());
+    _orfeoClient->setApiKey(_orfeoApiKeyEdit->text().trimmed());
+    _orfeoStatusLabel->setText("Paramètres enregistrés.");
+    _orfeoStatusLabel->setStyleSheet("color: green;");
+}
+
+void MainWindow::on_orfeoRefresh_clicked()
+{
+    _orfeoStatusLabel->setText("Actualisation…");
+    _orfeoStatusLabel->setStyleSheet("color: orange;");
+    _orfeoClient->fetchEvents();
+}
+
+void MainWindow::on_orfeoSaveConfig_clicked()
+{
+    readOrfeoPanelTable();
+    OrfeoConfig::save(_orfeoConfigs);
+    _orfeoStatusLabel->setText("Configuration panneaux enregistrée.");
+    _orfeoStatusLabel->setStyleSheet("color: green;");
+}
+
+void MainWindow::on_orfeoAutoSync_toggled(bool checked)
+{
+    if (checked) {
+        int ms = _orfeoIntervalSpin->value() * 60 * 1000;
+        _orfeoTimer->start(ms);
+        _orfeoStatusLabel->setText("Sync auto activée.");
+        _orfeoStatusLabel->setStyleSheet("color: green;");
+    } else {
+        _orfeoTimer->stop();
+        _orfeoStatusLabel->setText("Sync auto désactivée.");
+        _orfeoStatusLabel->setStyleSheet("color: gray;");
+    }
+}
+
+void MainWindow::orfeoEventsReceived(QList<OrfeoEvent> events)
+{
+    _orfeoEvents = events;
+    populateOrfeoTable();
+    _orfeoStatusLabel->setText(QString("%1 événement(s) reçu(s).").arg(events.size()));
+    _orfeoStatusLabel->setStyleSheet("color: green;");
+
+    if (_orfeoAutoSyncCheck && _orfeoAutoSyncCheck->isChecked())
+        syncOrfeoToAllPanels();
+}
+
+void MainWindow::orfeoError(QString message)
+{
+    _orfeoStatusLabel->setText("Erreur : " + message);
+    _orfeoStatusLabel->setStyleSheet("color: red;");
+}
+
+void MainWindow::orfeoAutoSyncTick()
+{
+    // Restart timer with current interval in case it changed
+    _orfeoTimer->setInterval(_orfeoIntervalSpin->value() * 60 * 1000);
+    _orfeoClient->fetchEvents();
+}
+
+void MainWindow::populateOrfeoTable()
+{
+    _orfeoEventsTable->setRowCount(_orfeoEvents.size());
+    for (int i = 0; i < _orfeoEvents.size(); ++i) {
+        const OrfeoEvent &e = _orfeoEvents[i];
+        _orfeoEventsTable->setItem(i, 0, new QTableWidgetItem(e.date));
+        _orfeoEventsTable->setItem(i, 1, new QTableWidgetItem(e.time));
+        _orfeoEventsTable->setItem(i, 2, new QTableWidgetItem(e.title));
+        _orfeoEventsTable->setItem(i, 3, new QTableWidgetItem(e.salle));
+        _orfeoEventsTable->setItem(i, 4, new QTableWidgetItem(e.personnel));
+    }
+}
+
+void MainWindow::readOrfeoPanelTable()
+{
+    for (int row = 0; row < _orfeoConfigs.size() && row < _orfeoPanelTable->rowCount(); ++row) {
+        PanelOrfeoConfig &c = _orfeoConfigs[row];
+
+        if (auto *spin = qobject_cast<QSpinBox*>(_orfeoPanelTable->cellWidget(row, 1)))
+            c.bank = spin->value();
+
+        auto cbAt = [&](int col) -> bool {
+            QWidget *w = _orfeoPanelTable->cellWidget(row, col);
+            if (!w) return false;
+            QCheckBox *cb = w->findChild<QCheckBox*>();
+            return cb ? cb->isChecked() : false;
+        };
+        c.showTitle     = cbAt(2);
+        c.showDate      = cbAt(3);
+        c.showTime      = cbAt(4);
+        c.showSalle     = cbAt(5);
+        c.showPersonnel = cbAt(6);
+
+        if (auto *le = qobject_cast<QLineEdit*>(_orfeoPanelTable->cellWidget(row, 7)))
+            c.salleFilter = le->text();
+
+        if (auto *spin = qobject_cast<QSpinBox*>(_orfeoPanelTable->cellWidget(row, 8)))
+            c.intervalMin = spin->value();
+
+        c.active = cbAt(9);
+    }
+}
+
+QString MainWindow::buildOrfeoMessage(const PanelOrfeoConfig &cfg, const QList<OrfeoEvent> &events)
+{
+    QStringList lines;
+    for (const OrfeoEvent &e : events) {
+        if (!cfg.salleFilter.isEmpty() &&
+            !e.salle.contains(cfg.salleFilter, Qt::CaseInsensitive))
+            continue;
+
+        QStringList parts;
+        if (cfg.showDate)      parts << e.date;
+        if (cfg.showTime)      parts << e.time;
+        if (cfg.showTitle)     parts << e.title;
+        if (cfg.showSalle)     parts << e.salle;
+        if (cfg.showPersonnel) parts << e.personnel;
+
+        if (!parts.isEmpty())
+            lines << parts.join("  ");
+    }
+    if (lines.isEmpty()) return "";
+
+    QString bank = (cfg.bank < 10 ? QString("MSG0") : QString("MSG")) + QString::number(cfg.bank);
+    return bank + "   " + lines.join(" | ") + "   ";
+}
+
+void MainWindow::syncOrfeoToAllPanels()
+{
+    readOrfeoPanelTable();
+    for (const PanelOrfeoConfig &cfg : _orfeoConfigs) {
+        if (!cfg.active) continue;
+        QString msg = buildOrfeoMessage(cfg, _orfeoEvents);
+        if (msg.isEmpty()) continue;
+
+        ledBar *bar = new ledBar(this);
+        bar->connection(cfg.panelIp, 23);
+        if (bar->isConnected()) {
+            bar->sendMessage(msg);
+            bar->closeConnection();
+        }
+        bar->deleteLater();
+    }
+}
