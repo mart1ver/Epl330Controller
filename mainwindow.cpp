@@ -23,6 +23,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    setFixedSize(1150, 780);
 
     epl = new ledBar(this);
     udpReceiver = new UDPClient(this);
