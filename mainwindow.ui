@@ -451,7 +451,7 @@
         <x>10</x>
         <y>5</y>
         <width>710</width>
-        <height>645</height>
+        <height>628</height>
        </rect>
       </property>
       <property name="midLineWidth">
@@ -1098,7 +1098,7 @@
       <property name="geometry">
        <rect>
         <x>5</x>
-        <y>657</y>
+        <y>640</y>
         <width>720</width>
         <height>32</height>
        </rect>
