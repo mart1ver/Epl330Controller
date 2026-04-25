@@ -25,9 +25,14 @@ public:
     QString getTimeStop();
     QString getEffect();
     QString getMsgBank();
+    QString getZone();
+    QString getBlink();
+    QString getRepeatStart();
+    QString getRepeatEnd();
     void updateCurrentMsgNum();
 
     QString composeMessage();
+    QString buildScheduleStr();
 
 private slots:
 
@@ -50,6 +55,9 @@ private slots:
     void on_blank_clicked();
 
     void on_clearSchedule_clicked();
+    void on_addSchedule_clicked();
+    void on_delSchedule_clicked();
+    void on_zoneSet_clicked();
 
     void on_saveIP_clicked();
 

@@ -127,35 +127,49 @@ QString MainWindow::getEffect()
     {
     case 0: effect = ""; break;
     case 1: effect = "\\w"; break;
-    case 2: effect = "'-"; break;
+    case 2: effect = "\\`-"; break;
     }
     return effect;
 }
 
 QString MainWindow::getMsgBank()
 {
-    QString msgBank;
-    if (ui->msgTable->currentRow() < 10)
-    {
-        msgBank = "MSG0" + QString::number(ui->msgTable->currentRow() + 1) + " |";
-    }
-    else
-    {
-        msgBank = "MSG" + QString::number(ui->msgTable->currentRow() + 1) + " |";
-    }
-    return msgBank;
+    int row = ui->msgTable->currentRow() + 1;
+    return (row < 10 ? QString("MSG0") : QString("MSG")) + QString::number(row) + " |";
+}
+
+QString MainWindow::getZone()
+{
+    int zone = ui->displayZoneNumber->value() - 1;
+    if (zone == 0) return "";
+    return "\\m" + QString::number(zone) + "t";
+}
+
+QString MainWindow::getRepeatStart()
+{
+    int r = ui->repeat->value();
+    if (r < 2) return "";
+    return r <= 9 ? "\\r" + QString::number(r) : "\\r0" + QString::number(r);
+}
+
+QString MainWindow::getRepeatEnd()
+{
+    return ui->repeat->value() >= 2 ? QString("\\f") : QString();
+}
+
+QString MainWindow::getBlink()
+{
+    int b = qMin(ui->blinkTime->value(), 9);
+    if (b == 0) return "";
+    return "\\c" + QString::number(b);
 }
 
 QString MainWindow::composeMessage()
 {
-    QString message;
-//    QString msgTableText;
-//    QByteArray msg;
-//    msg.append(ui->msgTable->currentItem()->text());
-//    msgTableText.append(QString::fromRawData(ui->msgTable->currentItem()->text(), sizeof(QChar)));
-
-    message = getMsgBank() + getFont() + getEffect() + getSpeed() + getInAnim() + "   " + ui->msgTable->currentItem()->text() + "   " + getTimeStop() + getOutAnim();
-    return message;
+    return getMsgBank() + getZone() + getFont() + getEffect() + getSpeed() +
+           getRepeatStart() + getInAnim() +
+           "   " + ui->msgTable->currentItem()->text() + "   " +
+           getTimeStop() + getBlink() + getRepeatEnd() + getOutAnim();
 }
 
 
@@ -355,6 +369,8 @@ void MainWindow::eplConnected()
     ui->connect->setChecked(true);
     ui->connect->setText("Déconnecter");
     ui->groupIP->setEnabled(true);
+    ui->groupPlanning->setEnabled(true);
+    ui->groupZone->setEnabled(true);
     ui->statusBar->showMessage("Connecté au journal !", 5000);
     this->updateCurrentMsgNum();
 }
@@ -370,6 +386,8 @@ void MainWindow::eplDisconnected()
     ui->connect->setChecked(false);
     ui->connect->setText("Connecter");
     ui->groupIP->setEnabled(false);
+    ui->groupPlanning->setEnabled(false);
+    ui->groupZone->setEnabled(false);
     ui->msgTable->clearContents();
     ui->statusBar->showMessage("Journal déconnecté !", 5000);
 }
@@ -457,5 +475,94 @@ void MainWindow::on_saveIP_clicked()
     {
         ui->statusBar->showMessage("Action impossible : veuillez d'abord vous connecter !", 5000);
     }
+}
+
+QString MainWindow::buildScheduleStr()
+{
+    static const QStringList MONTHS = {"JAN","FEV","MAR","AVR","MAI","JUN","JUL","AOU","SEP","OCT","NOV","DEC"};
+    static const QStringList DAYS   = {"LU","MA","ME","JE","VE","SA","DI"};
+
+    auto fmtTime = [](int h, int m) {
+        return QString("%1:%2").arg(h, 2, 10, QChar('0')).arg(m, 2, 10, QChar('0'));
+    };
+
+    QStringList parts;
+
+    if (!ui->monthSchedule->isChecked())
+        parts << MONTHS[ui->fromMonth->currentIndex()] + "/" + MONTHS[ui->toMonth->currentIndex()];
+
+    if (!ui->daySchedule->isChecked()) {
+        QString tFrom = ui->timeSchedule->isChecked() ? "00:00" : fmtTime(ui->fromHTime->value(), ui->fromMTime->value());
+        QString tTo   = ui->timeSchedule->isChecked() ? "24:00" : fmtTime(ui->toHTime->value(),   ui->toMTime->value());
+        parts << DAYS[ui->fromDay->currentIndex()] + " " + tFrom + "/" +
+                 DAYS[ui->toDay->currentIndex()]   + " " + tTo;
+    } else if (!ui->timeSchedule->isChecked()) {
+        parts << fmtTime(ui->fromHTime->value(), ui->fromMTime->value()) + "/" +
+                 fmtTime(ui->toHTime->value(),   ui->toMTime->value());
+    }
+
+    return parts.join(",");
+}
+
+void MainWindow::on_addSchedule_clicked()
+{
+    if (!epl->isConnected()) {
+        ui->statusBar->showMessage("Action impossible : veuillez d'abord vous connecter !", 5000);
+        return;
+    }
+    if (ui->msgTable->selectedItems().isEmpty()) {
+        ui->statusBar->showMessage("Action impossible : sélectionnez une mémoire !", 5000);
+        return;
+    }
+    QString plage = buildScheduleStr();
+    if (plage.isEmpty()) {
+        ui->statusBar->showMessage("Aucune restriction définie (tout coché).", 5000);
+        return;
+    }
+    epl->addSchedule(ui->msgTable->currentRow() + 1, plage);
+    ui->statusBar->showMessage("Plage horaire ajoutée !", 5000);
+}
+
+void MainWindow::on_delSchedule_clicked()
+{
+    if (!epl->isConnected()) {
+        ui->statusBar->showMessage("Action impossible : veuillez d'abord vous connecter !", 5000);
+        return;
+    }
+    if (ui->msgTable->selectedItems().isEmpty()) {
+        ui->statusBar->showMessage("Action impossible : sélectionnez une mémoire !", 5000);
+        return;
+    }
+    QString plage = buildScheduleStr();
+    if (plage.isEmpty()) {
+        ui->statusBar->showMessage("Aucune plage à supprimer.", 5000);
+        return;
+    }
+    epl->delSchedule(ui->msgTable->currentRow() + 1, plage);
+    ui->statusBar->showMessage("Plage horaire supprimée !", 5000);
+}
+
+void MainWindow::on_zoneSet_clicked()
+{
+    if (!epl->isConnected()) {
+        ui->statusBar->showMessage("Action impossible : veuillez d'abord vous connecter !", 5000);
+        return;
+    }
+    int n = ui->zoneNumber->value();
+    if (n == 0) {
+        ui->statusBar->showMessage("Configurez au moins 1 zone.", 5000);
+        return;
+    }
+    struct { QSpinBox *from; QSpinBox *to; } z[] = {
+        {ui->fromZone1, ui->toZone1},
+        {ui->fromZone2, ui->toZone2},
+        {ui->fromZone3, ui->toZone3},
+        {ui->fromZone4, ui->toZone4}
+    };
+    QStringList zones;
+    for (int i = 0; i < n; i++)
+        zones << QString("%1:%2-%3").arg(i).arg(z[i].from->value()).arg(z[i].to->value());
+    epl->setZones(zones.join(","));
+    ui->statusBar->showMessage("Zones configurées !", 5000);
 }
 

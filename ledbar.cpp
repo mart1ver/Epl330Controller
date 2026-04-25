@@ -150,16 +150,22 @@ void ledBar::clearBank(int bank)
 
 void ledBar::clearSchedule(int bank)
 {
-    QString msg;
-    if (bank < 10)
-    {
-        msg = "PLE0" + QString::number(bank);
-    }
-    else
-    {
-        msg = "PLE" + QString::number(bank);
-    }
-    sendMessage(msg);
+    sendMessage((bank < 10 ? QString("PLE0") : QString("PLE")) + QString::number(bank));
+}
+
+void ledBar::addSchedule(int bank, QString plage)
+{
+    sendMessage((bank < 10 ? QString("PLA0") : QString("PLA")) + QString::number(bank) + " " + plage);
+}
+
+void ledBar::delSchedule(int bank, QString plage)
+{
+    sendMessage((bank < 10 ? QString("PLS0") : QString("PLS")) + QString::number(bank) + " " + plage);
+}
+
+void ledBar::setZones(QString zoneDef)
+{
+    sendMessage("ZON " + zoneDef);
 }
 
 void ledBar::setIpAddress(QString ip, QString mask, QString gateway)

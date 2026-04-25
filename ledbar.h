@@ -26,6 +26,9 @@ public:
     void brightness(int value);
     void clearBank(int bank);
     void clearSchedule(int bank);
+    void addSchedule(int bank, QString plage);
+    void delSchedule(int bank, QString plage);
+    void setZones(QString zoneDef);
     void setIpAddress(QString ip, QString mask, QString gateway);
 
     QString getStatus();

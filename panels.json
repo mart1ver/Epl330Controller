@@ -62,5 +62,9 @@
     {
         "ip": "192.168.5.67",
         "name": "Boutique CDR"
+    },
+    {
+        "ip": "192.168.5.63",
+        "name": "celui de test"
     }
 ]

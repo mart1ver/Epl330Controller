@@ -283,7 +283,7 @@
       </widget>
       <widget class="QLabel" name="label_8">
        <property name="enabled">
-        <bool>false</bool>
+        <bool>true</bool>
        </property>
        <property name="geometry">
         <rect>
@@ -353,7 +353,7 @@
       </widget>
       <widget class="QSpinBox" name="blinkTime">
        <property name="enabled">
-        <bool>false</bool>
+        <bool>true</bool>
        </property>
        <property name="geometry">
         <rect>
@@ -379,7 +379,7 @@
       </widget>
       <widget class="QLabel" name="label_12">
        <property name="enabled">
-        <bool>false</bool>
+        <bool>true</bool>
        </property>
        <property name="geometry">
         <rect>
@@ -395,7 +395,7 @@
       </widget>
       <widget class="QSpinBox" name="displayZoneNumber">
        <property name="enabled">
-        <bool>false</bool>
+        <bool>true</bool>
        </property>
        <property name="geometry">
         <rect>
@@ -414,7 +414,7 @@
       </widget>
       <widget class="QLabel" name="label_33">
        <property name="enabled">
-        <bool>false</bool>
+        <bool>true</bool>
        </property>
        <property name="geometry">
         <rect>
@@ -430,7 +430,7 @@
       </widget>
       <widget class="QSpinBox" name="repeat">
        <property name="enabled">
-        <bool>false</bool>
+        <bool>true</bool>
        </property>
        <property name="geometry">
         <rect>
