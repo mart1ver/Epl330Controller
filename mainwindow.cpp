@@ -610,14 +610,17 @@ void MainWindow::setupOrfeoTab()
     if (!tab) return;
 
     QVBoxLayout *root = new QVBoxLayout(tab);
-    root->setSpacing(8);
-    root->setContentsMargins(8, 8, 8, 8);
+    root->setSpacing(10);
+    root->setContentsMargins(10, 10, 10, 10);
 
-    // --- Group: Configuration API ---
-    QGroupBox *apiGroup = new QGroupBox("Configuration API Orfeo", tab);
+    // ── Group: Configuration API ─────────────────────────────────────────────
+    QGroupBox *apiGroup = new QGroupBox("Configuration API Orfeo");
     QVBoxLayout *apiVBox = new QVBoxLayout(apiGroup);
+    apiVBox->setSpacing(6);
+
     QFormLayout *apiForm = new QFormLayout;
     apiForm->setLabelAlignment(Qt::AlignRight);
+    apiForm->setHorizontalSpacing(12);
 
     _orfeoApiUrlEdit = new QLineEdit(OrfeoConfig::apiUrl());
     _orfeoApiUrlEdit->setPlaceholderText("https://votre-instance.orfeo.pro");
@@ -630,62 +633,73 @@ void MainWindow::setupOrfeoTab()
     apiVBox->addLayout(apiForm);
 
     QHBoxLayout *apiButtons = new QHBoxLayout;
-    QPushButton *testBtn = new QPushButton("Tester la connexion");
+    QPushButton *testBtn    = new QPushButton("Tester la connexion");
     QPushButton *saveApiBtn = new QPushButton("Enregistrer");
+    testBtn->setFixedWidth(160);
+    saveApiBtn->setFixedWidth(120);
     _orfeoStatusLabel = new QLabel("—");
     _orfeoStatusLabel->setStyleSheet("color: gray;");
     apiButtons->addWidget(testBtn);
     apiButtons->addWidget(saveApiBtn);
+    apiButtons->addSpacing(16);
     apiButtons->addWidget(_orfeoStatusLabel);
     apiButtons->addStretch();
     apiVBox->addLayout(apiButtons);
 
+    // fixed height: API group never needs to grow
+    apiGroup->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     root->addWidget(apiGroup);
 
-    // --- Group: Événements à venir ---
-    QGroupBox *eventsGroup = new QGroupBox("Événements à venir", tab);
+    // ── Group: Événements à venir ─────────────────────────────────────────────
+    QGroupBox *eventsGroup = new QGroupBox("Événements à venir");
     QVBoxLayout *eventsVBox = new QVBoxLayout(eventsGroup);
+    eventsVBox->setSpacing(6);
 
     _orfeoEventsTable = new QTableWidget(0, 5);
     _orfeoEventsTable->setHorizontalHeaderLabels({"Date", "Heure", "Titre", "Salle", "Personnel"});
+    _orfeoEventsTable->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
     _orfeoEventsTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
     _orfeoEventsTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch);
     _orfeoEventsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     _orfeoEventsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-    _orfeoEventsTable->setMinimumHeight(130);
-    eventsVBox->addWidget(_orfeoEventsTable);
+    _orfeoEventsTable->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    eventsVBox->addWidget(_orfeoEventsTable, 1);   // stretch=1 → fills remaining group height
 
     QHBoxLayout *eventsBar = new QHBoxLayout;
     QPushButton *refreshBtn = new QPushButton("Actualiser");
+    refreshBtn->setFixedWidth(120);
     _orfeoAutoSyncCheck = new QCheckBox("Sync automatique toutes les");
     _orfeoIntervalSpin  = new QSpinBox;
     _orfeoIntervalSpin->setRange(1, 1440);
     _orfeoIntervalSpin->setValue(30);
     _orfeoIntervalSpin->setSuffix(" min");
+    _orfeoIntervalSpin->setFixedWidth(90);
     eventsBar->addWidget(refreshBtn);
-    eventsBar->addSpacing(16);
+    eventsBar->addSpacing(20);
     eventsBar->addWidget(_orfeoAutoSyncCheck);
     eventsBar->addWidget(_orfeoIntervalSpin);
     eventsBar->addStretch();
-    eventsVBox->addLayout(eventsBar);
+    eventsVBox->addLayout(eventsBar);  // toolbar sits below table, inside group
 
-    root->addWidget(eventsGroup);
+    root->addWidget(eventsGroup, 2);   // gets 2/5 of remaining space
 
-    // --- Group: Configuration par panneau ---
-    QGroupBox *panelGroup = new QGroupBox("Configuration par panneau", tab);
+    // ── Group: Configuration par panneau ─────────────────────────────────────
+    QGroupBox *panelGroup = new QGroupBox("Configuration par panneau");
     QVBoxLayout *panelVBox = new QVBoxLayout(panelGroup);
+    panelVBox->setSpacing(6);
 
     const QStringList panelCols = {
-        "Panneau", "Mémoire", "Titre", "Date", "Heure", "Salle",
-        "Personnel", "Filtre salle", "Intervalle", "Actif"
+        "Panneau", "Mémoire", "Titre", "Date", "Heure",
+        "Salle", "Personnel", "Filtre salle", "Intervalle", "Actif"
     };
     _orfeoPanelTable = new QTableWidget(0, panelCols.size());
     _orfeoPanelTable->setHorizontalHeaderLabels(panelCols);
+    _orfeoPanelTable->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
     _orfeoPanelTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     _orfeoPanelTable->horizontalHeader()->setSectionResizeMode(7, QHeaderView::Stretch);
-    _orfeoPanelTable->setMinimumHeight(160);
+    _orfeoPanelTable->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
-    // Load saved configs; fall back to one row per panel
+    // Load saved configs; seed from panel list if none saved yet
     _orfeoConfigs = OrfeoConfig::load();
     if (_orfeoConfigs.isEmpty()) {
         for (const Panel &p : _panels) {
@@ -733,17 +747,18 @@ void MainWindow::setupOrfeoTab()
         _orfeoPanelTable->setCellWidget(row, 9, centeredCheckBox(mkCb(c.active)));
     }
 
-    panelVBox->addWidget(_orfeoPanelTable);
+    panelVBox->addWidget(_orfeoPanelTable, 1);   // table fills group
 
     QHBoxLayout *panelBar = new QHBoxLayout;
     QPushButton *saveConfigBtn = new QPushButton("Enregistrer la configuration");
+    saveConfigBtn->setFixedWidth(220);
     panelBar->addWidget(saveConfigBtn);
     panelBar->addStretch();
-    panelVBox->addLayout(panelBar);
+    panelVBox->addLayout(panelBar);              // button sits below table
 
-    root->addWidget(panelGroup);
+    root->addWidget(panelGroup, 3);   // gets 3/5 of remaining space
 
-    // --- Connections ---
+    // ── Connections ───────────────────────────────────────────────────────────
     connect(testBtn,       &QPushButton::clicked, this, &MainWindow::on_orfeoTestApi_clicked);
     connect(saveApiBtn,    &QPushButton::clicked, this, &MainWindow::on_orfeoSaveApi_clicked);
     connect(refreshBtn,    &QPushButton::clicked, this, &MainWindow::on_orfeoRefresh_clicked);
